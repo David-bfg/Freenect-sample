@@ -8,7 +8,7 @@ Started with the APPSDK sample for CartoonFilter that does two things. It finds 
 To corect the edges we use freenect to access depth information. Doing edge detection on the depth information we can find where the actual object edges are. There is some image resizing/shifting to overlap the two cameras and then comparison is done between the two images to see where the edges overlap (give or take some number of pixels.)
 
 TODO:
-  lots of code cleanup (learning can be messy)
-  optimize openCL kernel
-  better overlaping of the two cameras
-  make event driven instead of bussy loop
+  - [ ] lots of code cleanup (learning can be messy)
+  - [ ] optimize openCL kernel
+  - [ ] better overlaping of the two cameras
+  - [ ] make event driven instead of bussy loop
