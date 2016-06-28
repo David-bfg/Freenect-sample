@@ -1,19 +1,3 @@
-/**********************************************************************
-Copyright ©2015 Advanced Micro Devices, Inc. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-.   Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-.   Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or
- other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY
- DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-********************************************************************/
-
 /**
 *******************************************************************************
 * @file <CartoonFilter.cpp>
@@ -162,22 +146,9 @@ class MyFreenectDevice : public Freenect::FreenectDevice {
 
 /**
 *******************************************************************************
-* @fn convertToString
-* @brief Convert character array to std::string.
-*
-* @param filename The character array.
-* @param str std::string.
-*******************************************************************************
-*/
-int convertToString(
-        const char *filename, 
-        std::string& str);
-
-/**
-*******************************************************************************
 * Implementation of convertToString                                           *
 ******************************************************************************/
-int convertToString(const char *filename, std::string& s)
+void convertToString(const char *filename, std::string& s)
 {
     size_t size;
     char*  str;
@@ -188,7 +159,7 @@ int convertToString(const char *filename, std::string& s)
 
     if(!f.is_open())
     {
-     	return SDK_FAILURE;   
+     	return;
     }
     else
     {
@@ -201,7 +172,7 @@ int convertToString(const char *filename, std::string& s)
         if(!str)
         {
             f.close();
-            return SDK_FAILURE;
+            return;
         }
 
         f.read(str, fileSize);
@@ -210,108 +181,6 @@ int convertToString(const char *filename, std::string& s)
 
         s = str;
         delete[] str;
-        return SDK_SUCCESS;
-    }
-}
-
-/******************************************************************************
-* Implementation of CartoonFilter::RGB2Gray_caller()                          *
-******************************************************************************/
-void CartoonFilter::RGB2Gray_caller(const oclMat &oclSrc, oclMat &oclDst,
-                                    int bidx)
-{
-    int channels = oclSrc.oclchannels();
-    size_t globalThreads[3] = {oclSrc.cols, oclSrc.rows, 1};
-    size_t localThreads[3] = {16, 16, 1};
-    char build_options[50];
-    sprintf (build_options, "-DDEPTH_%d", oclSrc.depth());
-
-    // args
-    vector<pair<size_t, const void *> > args;
-    args.push_back(make_pair(sizeof(cl_int), (void *)&oclSrc.cols));
-    args.push_back(make_pair(sizeof(cl_int), (void *)&oclSrc.rows));
-    args.push_back(make_pair(sizeof(cl_int), (void *)&oclSrc.step));
-    args.push_back(make_pair(sizeof(cl_int), (void *)&oclDst.step));
-    args.push_back(make_pair(sizeof(cl_int), (void *)&channels));
-    args.push_back(make_pair(sizeof(cl_int), (void *)&bidx));
-    args.push_back(make_pair(sizeof(cl_mem), (void *)&oclSrc.data));
-    args.push_back(make_pair(sizeof(cl_mem), (void *)&oclDst.data));
-
-   
-	// convert kernel file into string
-
-	string sourceStr;
-	int status = convertToString(kernelFile, sourceStr);
-	const char *source = sourceStr.c_str();
-
-	program_src1.programStr = source;
-
-	openCLExecuteKernelInterop(oclSrc.clCxt, program_src1, "RGB2Gray", globalThreads, localThreads, args, -1, -1, build_options);
-}
-
-/******************************************************************************
-* Implementation of CartoonFilter::Gray2RGB_caller()                          *
-******************************************************************************/
-void CartoonFilter::Gray2RGB_caller(const oclMat &oclSrc, oclMat &oclDst)
-{
-    size_t globalThreads[3] = {oclSrc.cols, oclSrc.rows, 1};
-    size_t localThreads[3] = {16, 16, 1};
-    char build_options[50];
-    sprintf (build_options, "-DDEPTH_%d", oclSrc.depth());
-
-    // args
-    vector<pair<size_t, const void *> > args;
-    args.push_back( make_pair( sizeof(cl_int) , (void *)&oclSrc.cols));
-    args.push_back( make_pair( sizeof(cl_int) , (void *)&oclSrc.rows));
-    args.push_back( make_pair( sizeof(cl_int) , (void *)&oclSrc.step));
-    args.push_back( make_pair( sizeof(cl_int) , (void *)&oclDst.step));
-    args.push_back( make_pair( sizeof(cl_mem) , (void *)&oclSrc.data));
-    args.push_back( make_pair( sizeof(cl_mem) , (void *)&oclDst.data));
-  
-	// convert kernel file into string
-	string sourceStr;
-	int status = convertToString(kernelFile, sourceStr);
-	const char *source = sourceStr.c_str();
-
-	program_src2.programStr = source; 
-
-
-	openCLExecuteKernelInterop(oclSrc.clCxt, program_src2,  "Gray2RGB",
-                               globalThreads, localThreads, args, -1, -1, build_options);
-}
-
-/******************************************************************************
-* Implementation of CartoonFilter::myCvtColor()                               *
-******************************************************************************/
-void CartoonFilter::myCvtColor(const oclMat &oclSrc, oclMat &oclDst, int code)
-{
-    Size size = oclSrc.size();
-    int depth = oclSrc.depth();
-    int channels = oclSrc.oclchannels();
-
-    CV_Assert(depth == CV_8U || depth == CV_16U || depth == CV_32F);
-
-    switch(code)
-    {
-    case CV_BGR2GRAY:
-    case CV_BGRA2GRAY:
-    {
-        CV_Assert(channels == 3 || channels == 4);
-        int bidx = ((code == CV_BGR2GRAY || CV_BGRA2GRAY) ? 0 : 2);
-        oclDst.create(size, CV_MAKETYPE(depth, 1));
-        RGB2Gray_caller(oclSrc, oclDst, bidx);
-        break;
-    }
-    case CV_GRAY2BGR:
-    case CV_GRAY2BGRA:
-    {
-        int dcn = (code == CV_GRAY2BGRA ? 4 : 3);
-        oclDst.create(size, CV_MAKETYPE(depth, dcn));
-        Gray2RGB_caller(oclSrc, oclDst);
-        break;
-    }
-    default:
-        CV_Error(SDK_FAILURE, "No convert rule");
         return;
     }
 }
@@ -350,18 +219,18 @@ void CartoonFilter::overlapingEdges(const oclMat &oclSrc, oclMat &oclDst, int pi
 	// convert kernel file into string
 
 	string sourceStr;
-	int status = convertToString(kernelFile, sourceStr);
+	convertToString(kernelFile, sourceStr);
 	const char *source = sourceStr.c_str();
 
-	program_src1.programStr = source;
+	program.programStr = source;
 
-	openCLExecuteKernelInterop(oclSrc.clCxt, program_src1, "OverlapingEdges", globalThreads, localThreads, args, -1, -1, build_options);
+	openCLExecuteKernelInterop(oclSrc.clCxt, program, "OverlapingEdges", globalThreads, localThreads, args, -1, -1, build_options);
 }
 
 /******************************************************************************
 * Implementation of CartoonFilter::run()                                      *
 ******************************************************************************/
-int CartoonFilter::run()
+void CartoonFilter::run()
 {
 
 	bool die(false);
@@ -398,7 +267,6 @@ int CartoonFilter::run()
 	    /****************************************************************************
 	    * Mean shift filter.                                                        *
 	    ****************************************************************************/
-//	    cv::cvtColor(rgbMat, cvSrcMat, CV_BGRA2BGR);
 	    oclSrcMat = rgbMat;  // Interop: OpenCV to OpenCV-CL.
 
 	    oclCloneMat = oclSrcMat.clone();
@@ -415,10 +283,6 @@ int CartoonFilter::run()
 
 	    oclCloneMat = oclCannyMat.clone();// Interop: Raw OpenCL kernel to OpenCV-CL.
 	    cv::ocl::Canny(oclCloneMat, oclCannyMat, 150, 150);
-
-	    // diff
-//	    cvDstMat = cvDstMat - cvCannyDstMat;
-		cv::imshow("rgb", cvDstMat);
 
 		oclDepthMat = depthMat;
 	    // Interop: OpenCV to Raw OpenCL kernel.
@@ -478,7 +342,6 @@ int CartoonFilter::run()
 
 	kinect.stopVideo();
 	kinect.stopDepth();
-    return SDK_SUCCESS;
 }
 
 int main( int argc, char** argv )
@@ -487,26 +350,11 @@ int main( int argc, char** argv )
     {
         CartoonFilter Itrp;
 
-        if (Itrp.sampleArgs->initialize() != SDK_SUCCESS)
-        {
-            return SDK_FAILURE;
-        }
-
-        if (Itrp.sampleArgs->parseCommandLine(argc, argv) != SDK_SUCCESS)
-        {
-            return SDK_FAILURE;
-        }
-
-        if (Itrp.run() != SDK_SUCCESS)
-        {
-            return SDK_FAILURE;
-        }
+        Itrp.run();
     }
     catch(cv::Exception &e)
     {
         const char *errMsg = e.what();
         cout << "Exception encountered with message: " << errMsg << endl;
     }
-
-    return SDK_SUCCESS;
 }
