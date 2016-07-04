@@ -41,7 +41,6 @@ class MyFreenectDevice : public Freenect::FreenectDevice {
 
 		// Do not call directly even in child
 		void VideoCallback(void* _rgb, uint32_t timestamp) {
-//			std::cout << "RGB callback" << std::endl;
 			m_rgb_mutex.lock();
 			uint8_t* rgb = static_cast<uint8_t*>(_rgb);
 			rgbMat.data = rgb;
@@ -51,7 +50,6 @@ class MyFreenectDevice : public Freenect::FreenectDevice {
 
 		// Do not call directly even in child
 		void DepthCallback(void* _depth, uint32_t timestamp) {
-//			std::cout << "Depth callback" << std::endl;
 			m_depth_mutex.lock();
 			uint16_t* depth = static_cast<uint16_t*>(_depth);
 			depthMat.data = (uchar*) depth;
@@ -75,48 +73,49 @@ class MyFreenectDevice : public Freenect::FreenectDevice {
 		bool getDepth(Mat& output) {
 				m_depth_mutex.lock();
 				if(m_new_depth_frame) {
-					uint16_t* depth = (uint16_t*) depthMat.data;
-					for( unsigned int i = 0 ; i < 640*480 ; i++) {
-						int pval = m_gamma[depth[i]];
-						int lb = pval & 0xff;
-						switch (pval>>8) {
-						case 0:
-							output.data[3*i+0] = 255-lb;
-							output.data[3*i+1] = 255-lb;
-							output.data[3*i+2] = 255;
-							break;
-						case 1:
-							output.data[3*i+0] = 0;
-							output.data[3*i+1] = lb;
-							output.data[3*i+2] = 255;
-							break;
-						case 2:
-							output.data[3*i+0] = 0;
-							output.data[3*i+1] = 255;
-							output.data[3*i+2] = 255-lb;
-							break;
-						case 3:
-							output.data[3*i+0] = lb;
-							output.data[3*i+1] = 255;
-							output.data[3*i+2] = 0;
-							break;
-						case 4:
-							output.data[3*i+0] = 255;
-							output.data[3*i+1] = 255-lb;
-							output.data[3*i+2] = 0;
-							break;
-						case 5:
-							output.data[3*i+0] = 255-lb;
-							output.data[3*i+1] = 0;
-							output.data[3*i+2] = 0;
-							break;
-						default:
-							output.data[3*i+0] = 0;
-							output.data[3*i+1] = 0;
-							output.data[3*i+2] = 0;
-							break;
-						}
-					}
+//					uint16_t* depth = (uint16_t*) depthMat.data;
+//					for( unsigned int i = 0 ; i < 640*480 ; i++) {
+//						int pval = m_gamma[depth[i]];
+//						int lb = pval & 0xff;
+//						switch (pval>>8) {
+//						case 0:
+//							output.data[3*i+0] = 255-lb;
+//							output.data[3*i+1] = 255-lb;
+//							output.data[3*i+2] = 255;
+//							break;
+//						case 1:
+//							output.data[3*i+0] = 0;
+//							output.data[3*i+1] = lb;
+//							output.data[3*i+2] = 255;
+//							break;
+//						case 2:
+//							output.data[3*i+0] = 0;
+//							output.data[3*i+1] = 255;
+//							output.data[3*i+2] = 255-lb;
+//							break;
+//						case 3:
+//							output.data[3*i+0] = lb;
+//							output.data[3*i+1] = 255;
+//							output.data[3*i+2] = 0;
+//							break;
+//						case 4:
+//							output.data[3*i+0] = 255;
+//							output.data[3*i+1] = 255-lb;
+//							output.data[3*i+2] = 0;
+//							break;
+//						case 5:
+//							output.data[3*i+0] = 255-lb;
+//							output.data[3*i+1] = 0;
+//							output.data[3*i+2] = 0;
+//							break;
+//						default:
+//							output.data[3*i+0] = 0;
+//							output.data[3*i+1] = 0;
+//							output.data[3*i+2] = 0;
+//							break;
+//						}
+//					}
+					depthMat.copyTo(output);
 					m_new_depth_frame = false;
 					m_depth_mutex.unlock();
 					return true;
@@ -232,9 +231,9 @@ void CartoonFilter::run()
 	string suffix(".png");
 	int i_snap(0),iter(0);
 
-	Mat depthMat(Size(640,480),CV_8UC3);
+	Mat depthMat(Size(640,480),CV_16UC1);
 	Mat depthf(Size(640,480),CV_8UC3);
-	cv::ocl::oclMat oclDepthMat(Size(640,480),CV_8UC1);
+	cv::ocl::oclMat oclDepthMat(Size(640,480),CV_16UC1);
 	cv::ocl::oclMat scale(Size(615,461),CV_8UC1);
 	Mat rgbMat(Size(640,480),CV_8UC3,Scalar(0));
 	Mat ownMat(Size(640,480),CV_8UC3,Scalar(0));
@@ -279,8 +278,7 @@ void CartoonFilter::run()
 	    cv::ocl::Canny(oclCloneMat, oclCannyMat, 150, 150);
 
 		oclDepthMat = depthMat;
-	    // Interop: OpenCV to Raw OpenCL kernel.
-	    cv::ocl::cvtColor(oclDepthMat.clone(), oclDepthMat, CV_BGRA2GRAY);
+	    oclDepthMat.clone().convertTo(oclDepthMat, CV_8UC1, 255.0/2048.0);
 
 	    oclCloneMat = oclDepthMat.clone();// Interop: Raw OpenCL kernel to OpenCV-CL.
 	    cv::ocl::Canny(oclCloneMat, oclDepthMat, 120, 200);
@@ -294,13 +292,13 @@ void CartoonFilter::run()
 	    cv::ocl::oclMat rect = oclDepthMat(cv::Rect(x, y, scale.cols, scale.rows));
 	    scale.copyTo(rect);
 
-	    overlapingEdges(oclDepthMat, oclCannyMat, 3);
+	    overlapingEdges(oclDepthMat, oclCannyMat, 5);
 
-	    // Interop: OpenCV-CL to Raw OpenCL kernel.
+	    // color conversion
 	    cv::ocl::cvtColor(oclCannyMat.clone(), oclCannyMat, CV_GRAY2BGRA);
 	    cvCannyDstMat = oclCannyMat;  // Interop: Raw OpenCL kernel to OpenCV.
 
-	    // Interop: OpenCV-CL to Raw OpenCL kernel.
+	    // color conversion
 	    cv::ocl::cvtColor(oclDepthMat.clone(), oclDepthMat, CV_GRAY2BGRA);
 	    depthf = oclDepthMat;  // Interop: Raw OpenCL kernel to OpenCV.
 	    cvDstMat = cvDstMat - cvCannyDstMat;
