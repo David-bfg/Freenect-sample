@@ -6,12 +6,6 @@
 */
 
 #include "CartoonFilter.hpp"
-#include "libfreenect.hpp"
-//#include <GL/glut.h>
-//#include <pthread.h>
-
-using namespace std;
-
 
 class myMutex {
 	public:
